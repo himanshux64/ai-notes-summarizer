@@ -18,6 +18,30 @@ const state = {
     isGenerating     : false,
 };
 
+const IS_GUEST = document.querySelector('.guest-banner') !== null;
+let guestUsage = JSON.parse(localStorage.getItem('guestUsage')) || { summaries: 0, chats: 0, uploads: 0 };
+let guestSessionId = localStorage.getItem('guest_session_id');
+if (!guestSessionId) {
+    guestSessionId = 'guest_' + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('guest_session_id', guestSessionId);
+}
+
+function checkGuestLimit(type) {
+    if (!IS_GUEST) return true;
+    const limits = { summaries: 3, chats: 5, uploads: 1 };
+    if (guestUsage[type] >= limits[type]) {
+        openModal(document.getElementById('authModal'));
+        return false;
+    }
+    return true;
+}
+
+function incrementGuestUsage(type) {
+    if (!IS_GUEST) return;
+    guestUsage[type]++;
+    localStorage.setItem('guestUsage', JSON.stringify(guestUsage));
+}
+
 /* ──────────────────────────────────────────────────────────
    2.  DOM REFERENCES
 ────────────────────────────────────────────────────────── */
@@ -254,23 +278,34 @@ async function handleGenerate() {
     formData.append('api_token', model === 'mock' ? 'mock' : token);
 
     if (isTextMode) {
+        if (!checkGuestLimit('summaries')) return;
         formData.append('text', textVal);
     } else {
+        if (!checkGuestLimit('uploads')) return;
+        if (!checkGuestLimit('summaries')) return;
         formData.append('file', fileInput.files[0]);
     }
 
     try {
-        setLoaderStatus('Sending to AI…', 'Connecting to inference API');
-        const res  = await fetch('/api/summarize', { method: 'POST', body: formData });
+        const res  = await fetch('/api/summarize', { 
+            method: 'POST', 
+            body: formData,
+            headers: { 'X-Guest-ID': guestSessionId }
+        });
         if (res.status === 401) { window.location.href = '/login'; return; }
         const data = await res.json();
 
         if (data.success) {
+            incrementGuestUsage('summaries');
+            if (!isTextMode) incrementGuestUsage('uploads');
+            
             state.currentSummaryId   = data.data.id;
             state.currentSummaryData = data.data;
             displayOutput(data.data);
-            await loadHistory();
-            setActiveHistoryItem(data.data.id);
+            if (!IS_GUEST) {
+                await loadHistory();
+                setActiveHistoryItem(data.data.id);
+            }
             showToast('Insights generated!', 'success');
         } else {
             showToast(data.error || 'Summarisation failed.', 'error');
@@ -312,6 +347,16 @@ function displayOutput(data) {
     // Flashcards
     renderFlashcards(data.flashcards || []);
 
+    // Reset chat
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        chatMessages.innerHTML = `
+            <div class="chat-bubble ai-bubble" style="align-self: flex-start; background: var(--glass-bg); padding: 10px 15px; border-radius: 15px; border-bottom-left-radius: 0; max-width: 80%; border: 1px solid var(--glass-border);">
+                Hello! I've read the document. What would you like to know?
+            </div>
+        `;
+    }
+
     // Switch to summary tab
     switchOutputTab('summary');
 }
@@ -321,6 +366,64 @@ function resetOutput() {
     show(outputEmptyState);
     hide(outputContentWrapper);
     hide(outputActions);
+}
+
+/* ──────────────────────────────────────────────────────────
+   7.5. AI CHAT
+────────────────────────────────────────────────────────── */
+async function handleChat() {
+    const chatInput = document.getElementById('chatInput');
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatInput || !chatMessages) return;
+
+    const msg = chatInput.value.trim();
+    if (!msg || !state.currentSummaryId) return;
+
+    if (!checkGuestLimit('chats')) return;
+
+    chatMessages.innerHTML += `<div class="chat-bubble user-bubble" style="align-self: flex-end; background: var(--accent-blue); padding: 10px 15px; border-radius: 15px; border-bottom-right-radius: 0; max-width: 80%; color: white;">${escapeHtml(msg)}</div>`;
+    chatInput.value = '';
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    const typingId = 'typing-' + Date.now();
+    chatMessages.innerHTML += `<div id="${typingId}" class="chat-bubble ai-bubble" style="align-self: flex-start; background: var(--glass-bg); padding: 10px 15px; border-radius: 15px; border-bottom-left-radius: 0; max-width: 80%; border: 1px solid var(--glass-border);"><i class="fa-solid fa-ellipsis fa-fade"></i></div>`;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    const payload = {
+        summary_id: state.currentSummaryId,
+        message: msg,
+        history: Array.from(chatMessages.querySelectorAll('.chat-bubble')).slice(0, -2).map(b => ({
+            role: b.classList.contains('user-bubble') ? 'user' : 'assistant',
+            content: b.textContent.trim()
+        }))
+    };
+
+    try {
+        const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Guest-ID': guestSessionId,
+                'X-HF-Token': localStorage.getItem('hf_token') || '',
+                'X-HF-Model': localStorage.getItem('hf_model') || 'mistralai/Mistral-7B-Instruct-v0.3'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        document.getElementById(typingId)?.remove();
+
+        if (data.success) {
+            incrementGuestUsage('chats');
+            chatMessages.innerHTML += `<div class="chat-bubble ai-bubble" style="align-self: flex-start; background: var(--glass-bg); padding: 10px 15px; border-radius: 15px; border-bottom-left-radius: 0; max-width: 80%; border: 1px solid var(--glass-border);">${escapeHtml(data.reply)}</div>`;
+        } else {
+            chatMessages.innerHTML += `<div class="chat-bubble ai-bubble" style="align-self: flex-start; color: var(--accent-orange);">${escapeHtml(data.error || 'Failed to get reply.')}</div>`;
+        }
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    } catch (err) {
+        document.getElementById(typingId)?.remove();
+        showToast('Chat failed.', 'error');
+    }
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -419,6 +522,10 @@ function copyAll() {
 }
 
 function exportSummary(format) {
+    if (IS_GUEST) {
+        openModal(document.getElementById('authModal'));
+        return;
+    }
     if (!state.currentSummaryId) { showToast('No summary to export.', 'error'); return; }
     window.location.href = `/api/export/${state.currentSummaryId}/${format}`;
 }
@@ -612,13 +719,31 @@ function bindEvents() {
     searchHistoryInput?.addEventListener('input', () => filterHistory(searchHistoryInput.value));
 
     // Mobile sidebar
-    sidebarToggleBtn?.addEventListener('click',  () => historySidebar?.classList.toggle('open'));
+    sidebarToggleBtn?.addEventListener('click', () => {
+        if (IS_GUEST) {
+            openModal(document.getElementById('authModal'));
+            return;
+        }
+        historySidebar?.classList.toggle('open');
+    });
     closeSidebarBtn?.addEventListener('click',   () => historySidebar?.classList.remove('open'));
+
+    // Auth Modal
+    const authModal = document.getElementById('authModal');
+    document.getElementById('closeAuthModalBtn')?.addEventListener('click', () => closeModal(authModal));
+    authModal?.addEventListener('click', (e) => { if (e.target === authModal) closeModal(authModal); });
+
+    // Chat
+    document.getElementById('sendChatBtn')?.addEventListener('click', handleChat);
+    document.getElementById('chatInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleChat();
+    });
 
     // Escape closes modal
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeModal(settingsModal);
+            closeModal(authModal);
             downloadDropdownContent?.classList.remove('open');
         }
     });

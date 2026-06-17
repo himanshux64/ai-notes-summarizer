@@ -23,9 +23,9 @@ from dotenv import load_dotenv
 
 from database import (
     create_user, get_user_by_email, get_user_by_id,
-    save_summary, get_history, get_summary, delete_summary,
+    save_summary, get_history, get_summary, delete_summary, migrate_guest_data
 )
-from summarizer import summarize_text
+from summarizer import summarize_text, chat_with_ai
 
 load_dotenv()
 
@@ -121,7 +121,17 @@ def signup():
 
         user = User(user_data)
         login_user(user)
-        flash("Account created! Welcome aboard 🎉", "success")
+
+        guest_id = request.form.get("guest_id")
+        if guest_id:
+            migrated = migrate_guest_data(guest_id, user.id)
+            if migrated > 0:
+                flash(f"Account created and {migrated} summaries migrated!", "success")
+            else:
+                flash("Account created! Welcome aboard 🎉", "success")
+        else:
+            flash("Account created! Welcome aboard 🎉", "success")
+
         return redirect(url_for("dashboard"))
 
     return render_template("signup.html")
@@ -145,6 +155,13 @@ def login():
 
         user = User(user_data)
         login_user(user, remember=remember)
+
+        guest_id = request.form.get("guest_id")
+        if guest_id:
+            migrated = migrate_guest_data(guest_id, user.id)
+            if migrated > 0:
+                flash(f"Logged in successfully. Migrated {migrated} items from guest session.", "success")
+
         next_page = request.args.get("next")
         return redirect(next_page or url_for("dashboard"))
 
@@ -163,9 +180,8 @@ def logout():
 #  Protected Dashboard
 # ──────────────────────────────────────────────────────────────────────────────
 @app.route("/dashboard")
-@login_required
 def dashboard():
-    return render_template("dashboard.html")
+    return render_template("dashboard.html", is_authenticated=current_user.is_authenticated)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -206,9 +222,15 @@ def api_delete_summary(summary_id):
 
 
 @app.route("/api/summarize", methods=["POST"])
-@login_required
 def api_summarize():
     try:
+        if current_user.is_authenticated:
+            user_id = current_user.id
+        else:
+            user_id = request.headers.get("X-Guest-ID") or request.form.get("guest_id")
+            if not user_id:
+                return jsonify({"success": False, "error": "Missing authentication or guest ID"}), 401
+
         title      = request.form.get("title", "").strip()
         text       = request.form.get("text", "").strip()
         api_token  = (request.headers.get("X-HF-Token")
@@ -263,9 +285,9 @@ def api_summarize():
         # AI summarization
         ai_data = summarize_text(text, api_token=api_token, model_name=model_name)
 
-        # Persist to Supabase
+        # Persist to database
         summary_id = save_summary(
-            user_id       = current_user.id,
+            user_id       = user_id,
             title         = title,
             original_text = text,
             summary       = ai_data["summary"],
@@ -291,6 +313,54 @@ def api_summarize():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    try:
+        data = request.json or {}
+        summary_id = data.get("summary_id")
+        user_message = data.get("message")
+        chat_history = data.get("history", [])
+
+        if not summary_id or not user_message:
+            return jsonify({"success": False, "error": "Missing summary_id or message"}), 400
+
+        if current_user.is_authenticated:
+            user_id = current_user.id
+        else:
+            user_id = request.headers.get("X-Guest-ID") or data.get("guest_id")
+
+        summary_data = get_summary(summary_id, user_id)
+        if not summary_data:
+            return jsonify({"success": False, "error": "Summary not found or access denied"}), 404
+
+        api_token  = request.headers.get("X-HF-Token", "")
+        model_name = request.headers.get("X-HF-Model", "mistralai/Mistral-7B-Instruct-v0.3")
+
+        if not api_token and model_name != "mock":
+            api_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN", "")
+
+        reply = chat_with_ai(summary_data["original_text"], user_message, chat_history, api_token, model_name)
+        
+        return jsonify({"success": True, "reply": reply})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/migrate_guest_data", methods=["POST"])
+@login_required
+def api_migrate_guest_data_endpoint():
+    try:
+        data = request.json or {}
+        guest_id = data.get("guest_id")
+        if not guest_id:
+            return jsonify({"success": False, "error": "Missing guest_id"}), 400
+            
+        migrated = migrate_guest_data(guest_id, current_user.id)
+        return jsonify({"success": True, "migrated_count": migrated})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/export/<string:summary_id>/<string:format_type>", methods=["GET"])
 @login_required

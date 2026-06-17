@@ -10,6 +10,7 @@ from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
+import certifi
 
 load_dotenv()
 
@@ -21,11 +22,12 @@ MONGODB_URI = os.environ.get("MONGODB_URI")
 
 if not MONGODB_URI or MONGODB_URI == "mongodb+srv://<username>:<password>@cluster0.mongodb.net/ai-notes?retryWrites=true&w=majority":
     print("Warning: MONGODB_URI environment variable is not properly set.")
-    # We don't raise RuntimeError here so the app can still start and show UI, 
+    # We don't raise RuntimeError here so the app can still start and show UI,
     # but database operations will fail if this isn't set.
 
 _client = None
 _db = None
+
 
 def get_db():
     """Lazy-initialise the MongoDB client and return the database instance."""
@@ -33,19 +35,33 @@ def get_db():
     if _client is None:
         if not MONGODB_URI:
             raise RuntimeError("MONGODB_URI is not set in the environment.")
-        _client = MongoClient(MONGODB_URI)
+
+        # NOTE: If you see SSL handshake errors, the most likely cause is that
+        # your IP is NOT whitelisted in MongoDB Atlas → Network Access.
+        # Go to cloud.mongodb.com → Network Access → Add IP Address →
+        # "Allow Access From Anywhere" (0.0.0.0/0) for development.
+        _client = MongoClient(
+            MONGODB_URI,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=20000,
+            socketTimeoutMS=20000,
+            retryWrites=True,
+        )
         # Try to get the default database from the URI, fallback to 'ai_notes' if missing
         try:
             _db = _client.get_default_database()
         except Exception:
             _db = _client["ai_notes"]
-        
+
         # Ensure email uniqueness
         _db.users.create_index("email", unique=True)
         # Ensure fast lookups for user summaries
         _db.summaries.create_index("user_id")
-        
+
     return _db
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  Helper
@@ -198,3 +214,16 @@ def delete_summary(summary_id: str, user_id: str) -> bool:
     db = get_db()
     result = db.summaries.delete_one({"_id": oid, "user_id": user_id})
     return result.deleted_count > 0
+
+
+def migrate_guest_data(guest_id: str, user_id: str) -> int:
+    """
+    Migrate all summaries created under a guest_id to a permanent user_id.
+    Returns the number of documents migrated.
+    """
+    db = get_db()
+    result = db.summaries.update_many(
+        {"user_id": guest_id},
+        {"$set": {"user_id": user_id}}
+    )
+    return result.modified_count

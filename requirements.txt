@@ -10,3 +10,4 @@ langchain-huggingface>=0.0.1
 langchain-core>=0.1.0
 huggingface_hub>=0.23.0
 PyPDF2>=3.0.0
+certifi>=2023.7.22

@@ -16,6 +16,7 @@
         <p class="auth-subtitle">Free forever. No credit card required.</p>
 
         <form method="POST" action="{{ url_for('signup') }}" class="auth-form" id="signupForm" novalidate>
+            <input type="hidden" name="guest_id" id="guestIdField">
             <!-- Email -->
             <div class="form-field">
                 <label for="signupEmail" class="field-label">Email address</label>
@@ -154,5 +155,11 @@
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Creating account…</span>';
         btn.disabled = true;
     });
+
+    // Populate guest_id if it exists
+    const guestId = localStorage.getItem('guest_session_id');
+    if (guestId) {
+        document.getElementById('guestIdField').value = guestId;
+    }
 </script>
 {% endblock %}

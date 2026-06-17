@@ -225,3 +225,50 @@ def summarize_text(text, api_token=None, model_name="meta-llama/Meta-Llama-3-8B-
         mock_data = generate_mock_summary(text)
         mock_data["summary"] = f"⚠️ [LLM API Error: {str(e)} - Displaying fallback notes]\n\n" + mock_data["summary"]
         return mock_data
+
+def chat_with_ai(context_text, user_message, chat_history=None, api_token=None, model_name="meta-llama/Meta-Llama-3-8B-Instruct"):
+    """
+    Handles a single chat turn about the document context.
+    """
+    if not api_token or api_token.strip() == "" or api_token == "mock":
+        return "Local Mock Mode: This is a simulated response. In production, the AI would answer your question based on the document context."
+
+    if "Mistral" in model_name or "zephyr" in model_name or "Llama-3.1" in model_name:
+        model_name = "meta-llama/Meta-Llama-3-8B-Instruct"
+
+    try:
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(model=model_name, token=api_token)
+
+        # Build system prompt limiting to 5000 chars for context window safety
+        system_prompt = f"You are a helpful AI assistant. Answer the user's questions based ONLY on the following document content:\n\n{context_text[:5000]}"
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        if chat_history:
+            messages.extend(chat_history)
+            
+        messages.append({"role": "user", "content": user_message})
+
+        try:
+            response = client.chat_completion(
+                messages=messages,
+                max_tokens=500,
+                temperature=0.3
+            )
+            return response.choices[0].message.content
+        except Exception as chat_err:
+            try:
+                # Text generation fallback if model is not chat
+                prompt = system_prompt + "\n\n"
+                for msg in messages[1:]:
+                    prompt += f"{msg['role'].capitalize()}: {msg['content']}\n"
+                prompt += "Assistant:"
+                
+                output = client.text_generation(prompt, max_new_tokens=500, temperature=0.3)
+                return output.strip()
+            except Exception:
+                raise chat_err
+
+    except Exception as e:
+        print(f"Error calling LLM Chat: {str(e)}")
+        return f"⚠️ [LLM API Error: {str(e)}]"
