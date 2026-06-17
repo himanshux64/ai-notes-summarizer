@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Log In — NotesMind Pro{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-glow-orb"></div>
+
+    <div class="auth-card" id="loginCard">
+        <!-- Logo -->
+        <div class="auth-logo">
+            <div class="auth-logo-icon"><i class="fa-solid fa-brain"></i></div>
+            <span>NotesMind <strong>Pro</strong></span>
+        </div>
+
+        <h1 class="auth-title">Welcome back</h1>
+        <p class="auth-subtitle">Log in to access your summaries and insights.</p>
+
+        <form method="POST" action="{{ url_for('login') }}" class="auth-form" id="loginForm" novalidate>
+            <!-- Email -->
+            <div class="form-field">
+                <label for="loginEmail" class="field-label">Email address</label>
+                <div class="field-input-wrap">
+                    <i class="fa-solid fa-envelope field-icon"></i>
+                    <input
+                        type="email"
+                        id="loginEmail"
+                        name="email"
+                        class="field-input"
+                        placeholder="you@example.com"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+            </div>
+
+            <!-- Password -->
+            <div class="form-field">
+                <div class="field-label-row">
+                    <label for="loginPassword" class="field-label">Password</label>
+                </div>
+                <div class="field-input-wrap">
+                    <i class="fa-solid fa-lock field-icon"></i>
+                    <input
+                        type="password"
+                        id="loginPassword"
+                        name="password"
+                        class="field-input"
+                        placeholder="••••••••"
+                        autocomplete="current-password"
+                        required
+                    >
+                    <button type="button" class="field-toggle-pw" id="loginTogglePw" aria-label="Toggle password visibility">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Remember Me -->
+            <div class="form-check-row">
+                <label class="check-label" for="rememberMe">
+                    <input type="checkbox" id="rememberMe" name="remember" class="check-input">
+                    <span class="check-custom"></span>
+                    Remember me for 30 days
+                </label>
+            </div>
+
+            <button type="submit" class="auth-submit-btn" id="loginSubmitBtn">
+                <i class="fa-solid fa-right-to-bracket"></i>
+                <span>Log In</span>
+            </button>
+        </form>
+
+        <div class="auth-divider"><span>New here?</span></div>
+
+        <a href="{{ url_for('signup') }}" class="auth-switch-btn" id="goToSignupBtn">
+            Create a free account <i class="fa-solid fa-arrow-right"></i>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Password visibility toggle
+    const toggleBtn = document.getElementById('loginTogglePw');
+    const pwInput   = document.getElementById('loginPassword');
+    toggleBtn?.addEventListener('click', () => {
+        const show = pwInput.type === 'password';
+        pwInput.type = show ? 'text' : 'password';
+        toggleBtn.querySelector('i').className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    });
+
+    // Submit loading state
+    document.getElementById('loginForm')?.addEventListener('submit', (e) => {
+        const btn = document.getElementById('loginSubmitBtn');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Logging in…</span>';
+        btn.disabled = true;
+    });
+</script>
+{% endblock %}

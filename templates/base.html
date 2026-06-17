@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI Notes Summarizer Pro — Turn any document into structured summaries, flashcards, and study notes in seconds.">
+    <title>{% block title %}AI Notes Summarizer Pro{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Base Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     NAVBAR
+════════════════════════════════════════════════════════════ -->
+<nav class="navbar" id="mainNavbar">
+    <div class="nav-inner">
+        <!-- Brand -->
+        <a href="{{ url_for('index') }}" class="nav-brand">
+            <div class="nav-logo-icon"><i class="fa-solid fa-brain"></i></div>
+            <span class="nav-brand-text">NotesMind <span class="nav-brand-accent">Pro</span></span>
+        </a>
+
+        <!-- Desktop Nav Links -->
+        <div class="nav-links" id="navLinks">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="fa-solid fa-gauge-high"></i> Dashboard
+                </a>
+            {% else %}
+                <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Home</a>
+            {% endif %}
+        </div>
+
+        <!-- Nav Actions -->
+        <div class="nav-actions">
+            <!-- Theme Toggle -->
+            <button id="themeToggleBtn" class="nav-icon-btn" title="Toggle theme" aria-label="Toggle dark/light mode">
+                <i class="fa-solid fa-moon" id="themeIcon"></i>
+            </button>
+
+            {% if current_user.is_authenticated %}
+                <!-- User Avatar Dropdown -->
+                <div class="user-menu" id="userMenu">
+                    <button class="user-avatar-btn" id="userAvatarBtn" aria-expanded="false">
+                        <div class="user-avatar">{{ current_user.email[0].upper() }}</div>
+                        <span class="user-email-truncate">{{ current_user.email }}</span>
+                        <i class="fa-solid fa-chevron-down avatar-chevron"></i>
+                    </button>
+                    <div class="user-dropdown" id="userDropdown" role="menu">
+                        <div class="dropdown-header">
+                            <span class="dropdown-email">{{ current_user.email }}</span>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="{{ url_for('logout') }}" class="dropdown-item logout-item" role="menuitem">
+                            <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="nav-btn-ghost">Log In</a>
+                <a href="{{ url_for('signup') }}" class="nav-btn-primary">Get Started</a>
+            {% endif %}
+
+            <!-- Mobile Hamburger -->
+            <button class="nav-hamburger" id="navHamburger" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="flash-container" id="flashContainer">
+            {% for category, message in messages %}
+                <div class="flash-msg flash-{{ category }}" role="alert">
+                    <i class="fa-solid {% if category == 'error' %}fa-circle-exclamation{% elif category == 'success' %}fa-circle-check{% else %}fa-circle-info{% endif %}"></i>
+                    <span>{{ message }}</span>
+                    <button class="flash-close" onclick="this.parentElement.remove()" aria-label="Dismiss">&times;</button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE CONTENT
+════════════════════════════════════════════════════════════ -->
+<main id="pageContent">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Base JS -->
+<script>
+    // ── Theme Management ──────────────────────────────────────
+    const themeBtn  = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    const htmlEl    = document.documentElement;
+
+    function applyTheme(theme) {
+        htmlEl.setAttribute('data-theme', theme);
+        themeIcon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        localStorage.setItem('theme', theme);
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    applyTheme(savedTheme);
+
+    themeBtn.addEventListener('click', () => {
+        applyTheme(htmlEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+
+    // ── User Dropdown ─────────────────────────────────────────
+    const avatarBtn  = document.getElementById('userAvatarBtn');
+    const dropdown   = document.getElementById('userDropdown');
+    if (avatarBtn && dropdown) {
+        avatarBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = dropdown.classList.toggle('open');
+            avatarBtn.setAttribute('aria-expanded', open);
+        });
+        document.addEventListener('click', () => {
+            dropdown?.classList.remove('open');
+            avatarBtn?.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    // ── Mobile Nav ────────────────────────────────────────────
+    const hamburger = document.getElementById('navHamburger');
+    const navLinks  = document.getElementById('navLinks');
+    hamburger?.addEventListener('click', () => {
+        navLinks?.classList.toggle('open');
+        hamburger.classList.toggle('active');
+    });
+
+    // ── Flash auto-dismiss ────────────────────────────────────
+    setTimeout(() => {
+        document.querySelectorAll('.flash-msg').forEach(el => {
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 400);
+        });
+    }, 5000);
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

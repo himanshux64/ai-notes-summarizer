@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Notes Summarizer Pro</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Markdown Parser (Marked.js) for rich study notes rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        
+        <!-- Header / Navbar -->
+        <header class="main-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-brain-circuit"></i>
+                </div>
+                <h1>AI Notes <span>Summarizer Pro</span></h1>
+            </div>
+            
+            <div class="nav-controls">
+                <button id="toggleThemeBtn" class="control-btn" title="Toggle Light/Dark Mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+                <button id="openSettingsBtn" class="control-btn" title="Settings & API Configuration">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+                <button id="sidebarToggleBtn" class="control-btn mobile-only" title="Toggle Saved Summaries">
+                    <i class="fa-solid fa-list"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Body Layout -->
+        <div class="main-layout">
+            
+            <!-- Sidebar (History Logs) -->
+            <aside class="sidebar" id="historySidebar">
+                <div class="sidebar-header">
+                    <h2><i class="fa-solid fa-history"></i> Saved Summaries</h2>
+                    <button id="closeSidebarBtn" class="close-btn mobile-only">&times;</button>
+                </div>
+                
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="searchHistoryInput" placeholder="Search saved notes...">
+                </div>
+
+                <div class="history-list" id="historyListContainer">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-folder-open"></i>
+                        <p>No saved summaries yet</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Workspace Panel (Editor + PDF Upload) -->
+            <main class="workspace">
+                <div class="workspace-grid">
+                    
+                    <!-- Left: Input Pane -->
+                    <section class="input-panel card-glass">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-pen-to-square"></i> Input Document</h2>
+                            <div class="input-tabs">
+                                <button id="tabTextBtn" class="input-tab-btn active">Paste Text</button>
+                                <button id="tabFileBtn" class="input-tab-btn">Upload File</button>
+                            </div>
+                        </div>
+
+                        <div class="panel-body">
+                            <!-- Title Input -->
+                            <div class="form-group">
+                                <input type="text" id="documentTitle" placeholder="Document Title (e.g., Biology Chapter 1)..." class="title-input">
+                            </div>
+
+                            <!-- Pasted Text Input Area -->
+                            <div id="textInputContainer" class="input-container">
+                                <textarea id="textEditor" placeholder="Paste your study notes, research papers, transcriptions, or articles here..." class="textarea-editor"></textarea>
+                                <div class="text-stats">
+                                    <span id="charCount">0 characters</span>
+                                    <span id="wordCount">0 words</span>
+                                    <span id="readingTime">0 min read</span>
+                                </div>
+                            </div>
+
+                            <!-- File Upload Area -->
+                            <div id="fileUploadContainer" class="input-container hidden">
+                                <div class="drag-drop-zone" id="dragDropZone">
+                                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                    <h3>Drag & drop document</h3>
+                                    <p>Supports PDFs & TXT files (Max 16MB)</p>
+                                    <div class="file-select-row">
+                                        <span>or</span>
+                                        <label for="fileInput" class="file-label-btn">Browse Files</label>
+                                        <input type="file" id="fileInput" accept=".pdf,.txt,.md" style="display: none;">
+                                    </div>
+                                </div>
+                                <div class="selected-file-card hidden" id="selectedFileCard">
+                                    <div class="file-info">
+                                        <i class="fa-regular fa-file-pdf file-type-icon" id="fileTypeIcon"></i>
+                                        <div class="file-meta">
+                                            <span class="file-name" id="fileName">notes.pdf</span>
+                                            <span class="file-size" id="fileSize">1.2 MB</span>
+                                        </div>
+                                    </div>
+                                    <button class="remove-file-btn" id="removeFileBtn" title="Remove File">&times;</button>
+                                </div>
+                            </div>
+
+                            <!-- Controls and Run -->
+                            <div class="action-row">
+                                <div class="model-select-group">
+                                    <label for="modelSelect"><i class="fa-solid fa-microchip"></i> Model:</label>
+                                    <select id="modelSelect" class="form-select">
+                                        <option value="meta-llama/Meta-Llama-3-8B-Instruct" selected>Meta Llama 3 (8B) - Balanced</option>
+                                        <option value="meta-llama/Meta-Llama-3-8B-Instruct">Meta Llama 3 (8B) - Creative</option>
+                                        <option value="meta-llama/Meta-Llama-3-8B-Instruct">Meta Llama 3 (8B) - Fast</option>
+                                        <option value="mock">Local Mock Mode (No Token Req.)</option>
+                                    </select>
+                                </div>
+                                <button id="generateBtn" class="glow-button">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Insights
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Right: Output Pane -->
+                    <section class="output-panel card-glass">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-square-poll-vertical"></i> AI Insights</h2>
+                            <div class="output-actions-header hidden" id="outputActions">
+                                <button class="action-btn-sm" id="btnCopyAll" title="Copy all results">
+                                    <i class="fa-solid fa-copy"></i> Copy
+                                </button>
+                                <div class="dropdown">
+                                    <button class="action-btn-sm" id="btnDownloadDropdown" title="Download summaries">
+                                        <i class="fa-solid fa-download"></i> Download <i class="fa-solid fa-caret-down"></i>
+                                    </button>
+                                    <div class="dropdown-content" id="downloadDropdownContent">
+                                        <button id="downloadMD"><i class="fa-brands fa-markdown"></i> Markdown (.md)</button>
+                                        <button id="downloadTXT"><i class="fa-solid fa-file-lines"></i> Plain Text (.txt)</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-body output-body">
+                            
+                            <!-- Initial Empty State -->
+                            <div class="output-empty" id="outputEmptyState">
+                                <div class="sparkle-circle">
+                                    <i class="fa-solid fa-sparkles animate-pulse"></i>
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                </div>
+                                <h3>AI Output Panel</h3>
+                                <p>Paste notes or upload a file and hit <strong>Generate Insights</strong>. Your structured summary, takeaways, study notes, and flashcards will appear here.</p>
+                            </div>
+
+                            <!-- Loader State -->
+                            <div class="output-loader hidden" id="outputLoader">
+                                <div class="spinner-container">
+                                    <div class="glowing-spinner"></div>
+                                    <div class="spinner-icon"><i class="fa-solid fa-brain"></i></div>
+                                </div>
+                                <h3 id="loaderStatus">Processing Document...</h3>
+                                <p id="loaderSubstatus">Extracting text features</p>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="progressBarFill"></div>
+                                </div>
+                            </div>
+
+                            <!-- Main Output Area (Hidden Initially) -->
+                            <div class="output-content-wrapper hidden" id="outputContentWrapper">
+                                <nav class="output-tabs-nav">
+                                    <button class="out-tab-btn active" data-tab="summary"><i class="fa-solid fa-align-left"></i> Summary</button>
+                                    <button class="out-tab-btn" data-tab="bullets"><i class="fa-solid fa-list-ul"></i> Highlights</button>
+                                    <button class="out-tab-btn" data-tab="takeaways"><i class="fa-solid fa-circle-check"></i> Takeaways</button>
+                                    <button class="out-tab-btn" data-tab="notes"><i class="fa-solid fa-book-open"></i> Notes</button>
+                                    <button class="out-tab-btn" data-tab="flashcards"><i class="fa-solid fa-chalkboard"></i> Flashcards</button>
+                                </nav>
+
+                                <div class="output-tabs-body">
+                                    <!-- Summary Tab -->
+                                    <div class="tab-pane active" id="pane-summary">
+                                        <div class="result-text" id="summaryOutput"></div>
+                                    </div>
+
+                                    <!-- Bullet Points Tab -->
+                                    <div class="tab-pane" id="pane-bullets">
+                                        <div class="result-markdown" id="bulletsOutput"></div>
+                                    </div>
+
+                                    <!-- Takeaways Tab -->
+                                    <div class="tab-pane" id="pane-takeaways">
+                                        <div class="result-markdown" id="takeawaysOutput"></div>
+                                    </div>
+
+                                    <!-- Study Notes Tab -->
+                                    <div class="tab-pane" id="pane-notes">
+                                        <div class="result-markdown markdown-body" id="notesOutput"></div>
+                                    </div>
+
+                                    <!-- Flashcards Tab -->
+                                    <div class="tab-pane" id="pane-flashcards">
+                                        <p class="flashcard-tip"><i class="fa-regular fa-lightbulb"></i> Click cards to flip and test your active recall.</p>
+                                        <div class="flashcards-grid" id="flashcardsContainer">
+                                            <!-- Dynamic cards generated here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </section>
+
+                </div>
+            </main>
+
+        </div>
+
+        <!-- Settings & Token Modal -->
+        <div class="modal-backdrop hidden" id="settingsModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h2><i class="fa-solid fa-sliders"></i> Configuration Settings</h2>
+                    <button class="close-modal-btn" id="closeSettingsBtn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert-box-info">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <p>We use Hugging Face's serverless Inference API. It is completely free, but requires an API token for optimal usage.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hfTokenInput">Hugging Face API Token:</label>
+                        <div class="input-password-row">
+                            <input type="password" id="hfTokenInput" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="modal-input">
+                            <button id="toggleTokenVisibility" class="visibility-btn" title="Toggle visibility">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <span class="help-text">Get your token by signing up at <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer">huggingface.co/settings/tokens</a>.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="defaultModelSelect">Default AI LLM Model:</label>
+                        <select id="defaultModelSelect" class="modal-input">
+                            <option value="meta-llama/Meta-Llama-3-8B-Instruct">Meta Llama 3 (8B) - Default</option>
+                        </select>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button id="saveSettingsBtn" class="primary-modal-btn">Save Configuration</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

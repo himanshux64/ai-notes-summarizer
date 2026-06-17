@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Create Account — NotesMind Pro{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-glow-orb"></div>
+
+    <div class="auth-card" id="signupCard">
+        <!-- Logo -->
+        <div class="auth-logo">
+            <div class="auth-logo-icon"><i class="fa-solid fa-brain"></i></div>
+            <span>NotesMind <strong>Pro</strong></span>
+        </div>
+
+        <h1 class="auth-title">Create your account</h1>
+        <p class="auth-subtitle">Free forever. No credit card required.</p>
+
+        <form method="POST" action="{{ url_for('signup') }}" class="auth-form" id="signupForm" novalidate>
+            <!-- Email -->
+            <div class="form-field">
+                <label for="signupEmail" class="field-label">Email address</label>
+                <div class="field-input-wrap">
+                    <i class="fa-solid fa-envelope field-icon"></i>
+                    <input
+                        type="email"
+                        id="signupEmail"
+                        name="email"
+                        class="field-input"
+                        placeholder="you@example.com"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+            </div>
+
+            <!-- Password -->
+            <div class="form-field">
+                <label for="signupPassword" class="field-label">Password</label>
+                <div class="field-input-wrap">
+                    <i class="fa-solid fa-lock field-icon"></i>
+                    <input
+                        type="password"
+                        id="signupPassword"
+                        name="password"
+                        class="field-input"
+                        placeholder="Min. 8 characters"
+                        autocomplete="new-password"
+                        required
+                        minlength="8"
+                    >
+                    <button type="button" class="field-toggle-pw" id="signupTogglePw" aria-label="Toggle password visibility">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                </div>
+                <!-- Strength indicator -->
+                <div class="pw-strength-bar" id="pwStrengthBar" aria-hidden="true">
+                    <div class="pw-strength-fill" id="pwStrengthFill"></div>
+                </div>
+                <span class="pw-strength-label" id="pwStrengthLabel"></span>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="form-field">
+                <label for="signupConfirm" class="field-label">Confirm password</label>
+                <div class="field-input-wrap">
+                    <i class="fa-solid fa-lock-open field-icon"></i>
+                    <input
+                        type="password"
+                        id="signupConfirm"
+                        name="confirm_password"
+                        class="field-input"
+                        placeholder="Repeat your password"
+                        autocomplete="new-password"
+                        required
+                    >
+                </div>
+                <span class="field-error hidden" id="confirmError">
+                    <i class="fa-solid fa-circle-exclamation"></i> Passwords do not match
+                </span>
+            </div>
+
+            <button type="submit" class="auth-submit-btn" id="signupSubmitBtn">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>Create Account</span>
+            </button>
+        </form>
+
+        <div class="auth-divider"><span>Already have an account?</span></div>
+
+        <a href="{{ url_for('login') }}" class="auth-switch-btn" id="goToLoginBtn">
+            Log in instead <i class="fa-solid fa-arrow-right"></i>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // ── Password visibility toggle ────────────────────────────
+    const toggleBtn = document.getElementById('signupTogglePw');
+    const pwInput   = document.getElementById('signupPassword');
+    toggleBtn?.addEventListener('click', () => {
+        const show = pwInput.type === 'password';
+        pwInput.type = show ? 'text' : 'password';
+        toggleBtn.querySelector('i').className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    });
+
+    // ── Password strength meter ───────────────────────────────
+    const strengthFill  = document.getElementById('pwStrengthFill');
+    const strengthLabel = document.getElementById('pwStrengthLabel');
+    const levels = [
+        { label: '',        color: 'transparent', width: '0%'   },
+        { label: 'Weak',    color: '#ef4444',      width: '25%'  },
+        { label: 'Fair',    color: '#f97316',      width: '50%'  },
+        { label: 'Good',    color: '#eab308',      width: '75%'  },
+        { label: 'Strong',  color: '#22c55e',      width: '100%' },
+    ];
+    function calcStrength(pw) {
+        let score = 0;
+        if (pw.length >= 8)  score++;
+        if (pw.length >= 12) score++;
+        if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+        if (/[0-9]/.test(pw)) score++;
+        if (/[^A-Za-z0-9]/.test(pw)) score++;
+        return Math.min(4, score);
+    }
+    pwInput?.addEventListener('input', () => {
+        const lvl = pwInput.value.length === 0 ? 0 : calcStrength(pwInput.value);
+        const { label, color, width } = levels[lvl];
+        strengthFill.style.width      = width;
+        strengthFill.style.background = color;
+        strengthLabel.textContent     = label;
+        strengthLabel.style.color     = color;
+    });
+
+    // ── Confirm password match ────────────────────────────────
+    const confirmInput = document.getElementById('signupConfirm');
+    const confirmError = document.getElementById('confirmError');
+    confirmInput?.addEventListener('input', () => {
+        const mismatch = confirmInput.value && confirmInput.value !== pwInput.value;
+        confirmError.classList.toggle('hidden', !mismatch);
+        confirmInput.classList.toggle('input-error', mismatch);
+    });
+
+    // ── Submit guard ──────────────────────────────────────────
+    document.getElementById('signupForm')?.addEventListener('submit', (e) => {
+        if (confirmInput.value !== pwInput.value) {
+            e.preventDefault();
+            confirmError.classList.remove('hidden');
+            confirmInput.focus();
+            return;
+        }
+        const btn = document.getElementById('signupSubmitBtn');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Creating account…</span>';
+        btn.disabled = true;
+    });
+</script>
+{% endblock %}
