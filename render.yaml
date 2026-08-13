@@ -1,7 +1,7 @@
 services:
   - type: web
     name: ai-notes-summarizer-pro
-    env: python
+    runtime: python
     plan: free
     region: oregon
     buildCommand: pip install -r requirements.txt
@@ -12,6 +12,10 @@ services:
         generateValue: true
       - key: MONGODB_URI
         sync: false
+      - key: HUGGINGFACEHUB_API_TOKEN
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.13.4
       - key: FLASK_ENV
         value: production
       - key: FLASK_DEBUG
