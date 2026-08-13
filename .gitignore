@@ -1,15 +1,24 @@
-# Environments
+# Secrets and local configuration
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Virtual environments
+.venv/
 venv/
 env/
 ENV/
 
 # Python
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+.python-version
 build/
 develop-eggs/
 dist/
@@ -27,14 +36,40 @@ share/python-wheels/
 .installed.cfg
 *.egg
 
+# Test, coverage, type-check, and lint caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.tox/
+.nox/
+
 # Database
 *.sqlite3
 *.db
 summaries.db
 data/
 
+# Logs and temporary runtime files
+*.log
+*.pid
+*.tmp
+*.temp
+uploads/
+instance/
+
 # IDEs and OS
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
+Desktop.ini
+*.code-workspace
+
+# Local AI-agent metadata
 .agents/
+.codex/
