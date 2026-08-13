@@ -60,6 +60,17 @@ def get_guest_id(*candidates) -> str | None:
             return candidate
     return None
 
+
+def resolve_hf_token(candidate: str | None, model_name: str) -> str:
+    """Prefer a valid client token, otherwise use the configured server token."""
+    if model_name == "mock":
+        return "mock"
+    candidate = (candidate or "").strip()
+    if candidate.startswith("hf_"):
+        return candidate
+    server_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN", "").strip()
+    return server_token if server_token.startswith("hf_") else ""
+
 # ──────────────────────────────────────────────────────────────────────────────
 #  Flask-Login Setup
 # ──────────────────────────────────────────────────────────────────────────────
@@ -257,16 +268,14 @@ def api_summarize():
 
         title      = request.form.get("title", "").strip()
         text       = request.form.get("text", "").strip()
-        api_token  = (request.headers.get("X-HF-Token")
-                      or request.form.get("api_token", "").strip())
+        supplied_token = (request.headers.get("X-HF-Token")
+                          or request.form.get("api_token", "").strip())
         
         model_name = (request.headers.get("X-HF-Model")
                       or request.form.get("model_name", "").strip()
                       or DEFAULT_MODEL)
 
-        # Use server default token if the user didn't provide one and isn't using mock mode
-        if not api_token and model_name != "mock":
-            api_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN", "")
+        api_token = resolve_hf_token(supplied_token, model_name)
 
         # Handle file uploads
         if "file" in request.files:
@@ -374,11 +383,9 @@ def api_chat():
         if not summary_data:
             return jsonify({"success": False, "error": "Summary not found or access denied"}), 404
 
-        api_token  = request.headers.get("X-HF-Token", "")
+        supplied_token = request.headers.get("X-HF-Token", "")
         model_name = request.headers.get("X-HF-Model", DEFAULT_MODEL)
-
-        if not api_token and model_name != "mock":
-            api_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN", "")
+        api_token = resolve_hf_token(supplied_token, model_name)
 
         reply = chat_with_ai(summary_data["original_text"], user_message, chat_history, api_token, model_name)
         

@@ -180,26 +180,13 @@ def summarize_text(text, api_token=None, model_name=DEFAULT_MODEL):
         # Build prompt
         prompt = PROMPT_TEMPLATE.format(text=text)
         
-        try:
-            # Try chat_completion first (required by some providers for instruct models)
-            messages = [{"role": "user", "content": prompt}]
-            response = client.chat_completion(
-                messages=messages,
-                max_tokens=1024,
-                temperature=0.3
-            )
-            raw_output = response.choices[0].message.content
-        except Exception as chat_err:
-            # If the model is not a chat model, fallback to text_generation
-            try:
-                raw_output = client.text_generation(
-                    prompt,
-                    max_new_tokens=1024,
-                    temperature=0.3
-                )
-            except Exception as text_err:
-                # Raise the original error if both fail, prioritizing the first relevant message
-                raise Exception(f"chat_completion error: {str(chat_err)} | text_generation error: {str(text_err)}")
+        messages = [{"role": "user", "content": prompt}]
+        response = client.chat_completion(
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.3
+        )
+        raw_output = response.choices[0].message.content
         
         # Parse output
         return parse_llm_output(raw_output)
@@ -234,25 +221,12 @@ def chat_with_ai(context_text, user_message, chat_history=None, api_token=None, 
             
         messages.append({"role": "user", "content": user_message})
 
-        try:
-            response = client.chat_completion(
-                messages=messages,
-                max_tokens=500,
-                temperature=0.3
-            )
-            return response.choices[0].message.content
-        except Exception as chat_err:
-            try:
-                # Text generation fallback if model is not chat
-                prompt = system_prompt + "\n\n"
-                for msg in messages[1:]:
-                    prompt += f"{msg['role'].capitalize()}: {msg['content']}\n"
-                prompt += "Assistant:"
-                
-                output = client.text_generation(prompt, max_new_tokens=500, temperature=0.3)
-                return output.strip()
-            except Exception:
-                raise chat_err
+        response = client.chat_completion(
+            messages=messages,
+            max_tokens=500,
+            temperature=0.3
+        )
+        return response.choices[0].message.content
 
     except Exception as e:
         print(f"Error calling LLM Chat: {str(e)}")

@@ -151,6 +151,11 @@ function loadSettings() {
 function saveSettings() {
     const token = hfTokenInput?.value.trim() || '';
     const model = defaultModelSelect?.value || 'google/gemma-3-27b-it';
+    if (token && !token.startsWith('hf_')) {
+        showToast('Enter a valid Hugging Face token beginning with hf_.', 'error');
+        hfTokenInput?.focus();
+        return;
+    }
     localStorage.setItem('hf_token', token);
     localStorage.setItem('hf_model', model);
     if (modelSelect) modelSelect.value = model;
