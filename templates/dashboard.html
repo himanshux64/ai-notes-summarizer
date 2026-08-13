@@ -5,22 +5,22 @@
 <div class="app-container">
 
     <!-- ═══ SIDEBAR ════════════════════════════════════════ -->
-    <aside class="sidebar" id="historySidebar">
+    <aside class="sidebar" id="historySidebar" aria-label="Saved summaries">
         <div class="sidebar-header">
             <h2><i class="fa-solid fa-history"></i> My Summaries</h2>
             <button id="closeSidebarBtn" class="close-btn mobile-only" aria-label="Close sidebar">&times;</button>
         </div>
 
         {% if not is_authenticated %}
-        <div class="search-box" style="opacity: 0.5; pointer-events: none;">
+        <div class="search-box search-box-locked">
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" placeholder="Sign up to search..." disabled>
         </div>
         <div class="history-list" id="historyListContainer">
-            <div class="empty-state" style="padding: 20px;">
-                <i class="fa-solid fa-lock" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 10px;"></i>
+            <div class="empty-state guest-history-empty">
+                <i class="fa-solid fa-lock"></i>
                 <p>History is locked</p>
-                <a href="{{ url_for('signup') }}" style="color: var(--accent-blue); text-decoration: none; font-size: 0.9rem; margin-top: 10px; display: inline-block;">Create account to save summaries →</a>
+                <a href="{{ url_for('signup') }}" class="inline-action-link">Create account to save summaries <i class="fa-solid fa-arrow-right"></i></a>
             </div>
         </div>
         {% else %}
@@ -37,16 +37,28 @@
         </div>
         {% endif %}
     </aside>
+    <button class="sidebar-backdrop" id="sidebarBackdrop" aria-label="Close saved summaries" tabindex="-1"></button>
 
     <!-- ═══ WORKSPACE ══════════════════════════════════════ -->
     <div class="workspace-wrapper">
         {% if not is_authenticated %}
-        <div class="guest-banner" style="background: var(--glass-bg); border: 1px solid var(--glass-border); padding: 10px 20px; border-radius: 8px; margin: 10px 20px 0; display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 0.9rem; z-index: 10;">
-            <i class="fa-solid fa-user-clock" style="color: var(--accent-orange);"></i>
-            <span style="flex: 1;">You are using Guest Mode. Free usage limits apply.</span>
-            <a href="{{ url_for('signup') }}" style="color: var(--accent-blue); text-decoration: none; font-weight: 500;">Create a free account to save your work</a>
+        <div class="guest-banner">
+            <i class="fa-solid fa-user-clock"></i>
+            <span>You are using Guest Mode. Free usage limits apply.</span>
+            <a href="{{ url_for('signup') }}">Create an account</a>
         </div>
         {% endif %}
+
+        <div class="workspace-statusbar" aria-label="Workspace status">
+            <div>
+                <span class="workspace-eyebrow">AI workspace</span>
+                <strong>Turn documents into useful knowledge</strong>
+            </div>
+            <span class="service-status" id="serviceStatus" role="status" aria-live="polite">
+                <span class="status-dot"></span>
+                <span id="serviceStatusText">Service ready</span>
+            </span>
+        </div>
 
         <!-- Mobile sidebar toggle -->
         <button id="sidebarToggleBtn" class="sidebar-fab" aria-label="Toggle saved summaries">
@@ -197,7 +209,7 @@
                                         </div>
                                     </div>
                                     <div class="chat-input-row">
-                                        <input type="text" id="chatInput" placeholder="Ask a question about the document..." style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--input-bg); color: var(--text-light);">
+                                        <input type="text" id="chatInput" class="modal-input" placeholder="Ask a question about the document..." aria-label="Ask about this document">
                                         <button id="sendChatBtn" class="glow-button chat-send-btn" aria-label="Send message"><i class="fa-solid fa-paper-plane"></i></button>
                                     </div>
                                 </div>

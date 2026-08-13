@@ -94,6 +94,7 @@ const searchHistoryInput   = document.getElementById('searchHistoryInput');
 const historySidebar       = document.getElementById('historySidebar');
 const closeSidebarBtn      = document.getElementById('closeSidebarBtn');
 const sidebarToggleBtn     = document.getElementById('sidebarToggleBtn');
+const sidebarBackdrop      = document.getElementById('sidebarBackdrop');
 
 // Settings Modal
 const settingsModal        = document.getElementById('settingsModal');
@@ -111,7 +112,23 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
     loadHistory();
     bindEvents();
+    updateServiceStatus();
 });
+
+function updateServiceStatus() {
+    const status = document.getElementById('serviceStatus');
+    const text = document.getElementById('serviceStatusText');
+    if (!status || !text) return;
+    const online = navigator.onLine;
+    status.classList.toggle('offline', !online);
+    text.textContent = online ? 'Service ready' : 'You are offline';
+}
+
+function setSidebarOpen(open) {
+    historySidebar?.classList.toggle('open', open);
+    sidebarBackdrop?.classList.toggle('open', open);
+    document.body.classList.toggle('sidebar-open', open);
+}
 
 /* ──────────────────────────────────────────────────────────
    4.  SETTINGS  (localStorage)
@@ -751,9 +768,12 @@ function bindEvents() {
             openModal(document.getElementById('authModal'));
             return;
         }
-        historySidebar?.classList.toggle('open');
+        setSidebarOpen(!historySidebar?.classList.contains('open'));
     });
-    closeSidebarBtn?.addEventListener('click',   () => historySidebar?.classList.remove('open'));
+    closeSidebarBtn?.addEventListener('click', () => setSidebarOpen(false));
+    sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
+    window.addEventListener('online', updateServiceStatus);
+    window.addEventListener('offline', updateServiceStatus);
 
     // Auth Modal
     const authModal = document.getElementById('authModal');
@@ -771,6 +791,7 @@ function bindEvents() {
         if (e.key === 'Escape') {
             closeModal(settingsModal);
             closeModal(authModal);
+            setSidebarOpen(false);
             downloadDropdownContent?.classList.remove('open');
         }
     });
