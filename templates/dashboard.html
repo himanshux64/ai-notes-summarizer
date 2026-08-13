@@ -115,9 +115,7 @@
                         <div class="model-select-group">
                             <label for="modelSelect"><i class="fa-solid fa-microchip"></i> Model:</label>
                             <select id="modelSelect" class="form-select" aria-label="Select AI model">
-                                <option value="meta-llama/Meta-Llama-3-8B-Instruct" selected>Meta Llama 3 (8B) — Balanced</option>
-                                <option value="meta-llama/Meta-Llama-3-8B-Instruct">Meta Llama 3 (8B) — Creative</option>
-                                <option value="meta-llama/Meta-Llama-3-8B-Instruct">Meta Llama 3 (8B) — Fast</option>
+                                <option value="google/gemma-3-27b-it" selected>Gemma 3 (27B) — Default</option>
                                 <option value="mock">Local Mock Mode (No token needed)</option>
                             </select>
                         </div>
@@ -192,15 +190,15 @@
                                 <div class="flashcards-grid" id="flashcardsContainer"></div>
                             </div>
                             <div class="tab-pane" id="pane-chat" role="tabpanel">
-                                <div class="chat-interface" style="display: flex; flex-direction: column; height: 100%; min-height: 400px;">
-                                    <div class="chat-messages" id="chatMessages" style="flex: 1; overflow-y: auto; padding: 1rem; border-radius: 8px; background: rgba(0,0,0,0.1); margin-bottom: 1rem; display: flex; flex-direction: column; gap: 10px;">
-                                        <div class="chat-bubble ai-bubble" style="align-self: flex-start; background: var(--glass-bg); padding: 10px 15px; border-radius: 15px; border-bottom-left-radius: 0; max-width: 80%; border: 1px solid var(--glass-border);">
+                                <div class="chat-interface">
+                                    <div class="chat-messages" id="chatMessages">
+                                        <div class="chat-bubble ai-bubble">
                                             Hello! I've read the document. What would you like to know?
                                         </div>
                                     </div>
-                                    <div class="chat-input-row" style="display: flex; gap: 10px;">
+                                    <div class="chat-input-row">
                                         <input type="text" id="chatInput" placeholder="Ask a question about the document..." style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--input-bg); color: var(--text-light);">
-                                        <button id="sendChatBtn" class="glow-button" aria-label="Send message" style="padding: 0 20px;"><i class="fa-solid fa-paper-plane"></i></button>
+                                        <button id="sendChatBtn" class="glow-button chat-send-btn" aria-label="Send message"><i class="fa-solid fa-paper-plane"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -239,7 +237,7 @@
             <div class="form-group">
                 <label for="defaultModelSelect">Default AI Model:</label>
                 <select id="defaultModelSelect" class="modal-input" aria-label="Default model">
-                    <option value="meta-llama/Meta-Llama-3-8B-Instruct">Meta Llama 3 (8B) — Default</option>
+                    <option value="google/gemma-3-27b-it">Gemma 3 (27B) — Default</option>
                 </select>
             </div>
             <div class="modal-footer">
@@ -256,11 +254,11 @@
             <h2 id="authModalTitle"><i class="fa-solid fa-user-lock"></i> Create a Free Account to Continue</h2>
             <button class="close-modal-btn" id="closeAuthModalBtn" aria-label="Close modal">&times;</button>
         </div>
-        <div class="modal-body" style="text-align: center;">
-            <p style="margin-bottom: 2rem; color: var(--text-muted);">Save your notes, export summaries, access history, and unlock unlimited usage.</p>
+        <div class="modal-body">
+            <p class="auth-modal-copy">Save your notes, export summaries, access history, and unlock unlimited usage.</p>
             <div class="auth-modal-buttons">
-                <a href="{{ url_for('signup') }}" class="primary-modal-btn" style="text-align: center; display: block; text-decoration: none; margin-bottom: 10px;">Sign Up</a>
-                <a href="{{ url_for('login') }}" class="secondary-modal-btn" style="background: transparent; border: 1px solid var(--glass-border); color: var(--text-light); text-align: center; display: block; text-decoration: none; padding: 0.75rem 1.5rem; border-radius: 8px;">Log In</a>
+                <a href="{{ url_for('signup') }}" class="primary-modal-btn">Sign Up</a>
+                <a href="{{ url_for('login') }}" class="secondary-modal-btn">Log In</a>
             </div>
         </div>
     </div>

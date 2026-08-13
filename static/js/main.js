@@ -21,8 +21,10 @@ const state = {
 const IS_GUEST = document.querySelector('.guest-banner') !== null;
 let guestUsage = JSON.parse(localStorage.getItem('guestUsage')) || { summaries: 0, chats: 0, uploads: 0 };
 let guestSessionId = localStorage.getItem('guest_session_id');
-if (!guestSessionId) {
-    guestSessionId = 'guest_' + Math.random().toString(36).substring(2, 15);
+if (!/^guest_[A-Za-z0-9_-]{16,128}$/.test(guestSessionId || '')) {
+    const randomBytes = new Uint8Array(24);
+    crypto.getRandomValues(randomBytes);
+    guestSessionId = 'guest_' + Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
     localStorage.setItem('guest_session_id', guestSessionId);
 }
 
@@ -116,11 +118,11 @@ document.addEventListener('DOMContentLoaded', () => {
 ────────────────────────────────────────────────────────── */
 function loadSettings() {
     const token = localStorage.getItem('hf_token') || '';
-    let model = localStorage.getItem('hf_model') || 'meta-llama/Meta-Llama-3-8B-Instruct';
+    let model = localStorage.getItem('hf_model') || 'google/gemma-3-27b-it';
     
-    // If the browser still holds the unsupported Mistral model, auto-migrate it
-    if (model.includes('Mistral') || model.includes('zephyr')) {
-        model = 'meta-llama/Meta-Llama-3-8B-Instruct';
+    // Migrate model IDs that are no longer available through routed inference.
+    if (model.includes('Mistral') || model.includes('zephyr') || model.includes('Meta-Llama-3')) {
+        model = 'google/gemma-3-27b-it';
         localStorage.setItem('hf_model', model);
     }
     
@@ -131,7 +133,7 @@ function loadSettings() {
 
 function saveSettings() {
     const token = hfTokenInput?.value.trim() || '';
-    const model = defaultModelSelect?.value || 'mistralai/Mistral-7B-Instruct-v0.3';
+    const model = defaultModelSelect?.value || 'google/gemma-3-27b-it';
     localStorage.setItem('hf_token', token);
     localStorage.setItem('hf_model', model);
     if (modelSelect) modelSelect.value = model;
@@ -143,6 +145,7 @@ function saveSettings() {
    5.  HISTORY  (sidebar)
 ────────────────────────────────────────────────────────── */
 async function loadHistory() {
+    if (IS_GUEST) return;
     try {
         const res  = await fetch('/api/history');
         // 401 = not logged in, handled by Flask redirect
@@ -278,11 +281,16 @@ async function handleGenerate() {
     formData.append('api_token', model === 'mock' ? 'mock' : token);
 
     if (isTextMode) {
-        if (!checkGuestLimit('summaries')) return;
+        if (!checkGuestLimit('summaries')) {
+            resetGeneratingState();
+            return;
+        }
         formData.append('text', textVal);
     } else {
-        if (!checkGuestLimit('uploads')) return;
-        if (!checkGuestLimit('summaries')) return;
+        if (!checkGuestLimit('uploads') || !checkGuestLimit('summaries')) {
+            resetGeneratingState();
+            return;
+        }
         formData.append('file', fileInput.files[0]);
     }
 
@@ -315,10 +323,17 @@ async function handleGenerate() {
         showToast('Network error. Please try again.', 'error');
         resetOutput();
     } finally {
-        state.isGenerating = false;
+        resetGeneratingState();
+    }
+}
+
+function resetGeneratingState() {
+    state.isGenerating = false;
+    if (generateBtn) {
         generateBtn.disabled = false;
         generateBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Insights';
     }
+    hideLoader();
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -335,9 +350,10 @@ function displayOutput(data) {
 
     // Markdown sections
     if (typeof marked !== 'undefined') {
-        bulletsOutput.innerHTML   = marked.parse(data.bullet_points  || '_No data_');
-        takeawaysOutput.innerHTML = marked.parse(data.takeaways      || '_No data_');
-        notesOutput.innerHTML     = marked.parse(data.study_notes    || '_No data_');
+        // Escape embedded HTML before parsing Markdown to prevent stored XSS.
+        bulletsOutput.innerHTML   = marked.parse(escapeHtml(data.bullet_points || '_No data_'));
+        takeawaysOutput.innerHTML = marked.parse(escapeHtml(data.takeaways     || '_No data_'));
+        notesOutput.innerHTML     = marked.parse(escapeHtml(data.study_notes   || '_No data_'));
     } else {
         bulletsOutput.textContent   = data.bullet_points  || '';
         takeawaysOutput.textContent = data.takeaways      || '';
@@ -351,7 +367,7 @@ function displayOutput(data) {
     const chatMessages = document.getElementById('chatMessages');
     if (chatMessages) {
         chatMessages.innerHTML = `
-            <div class="chat-bubble ai-bubble" style="align-self: flex-start; background: var(--glass-bg); padding: 10px 15px; border-radius: 15px; border-bottom-left-radius: 0; max-width: 80%; border: 1px solid var(--glass-border);">
+            <div class="chat-bubble ai-bubble">
                 Hello! I've read the document. What would you like to know?
             </div>
         `;
@@ -381,12 +397,12 @@ async function handleChat() {
 
     if (!checkGuestLimit('chats')) return;
 
-    chatMessages.innerHTML += `<div class="chat-bubble user-bubble" style="align-self: flex-end; background: var(--accent-blue); padding: 10px 15px; border-radius: 15px; border-bottom-right-radius: 0; max-width: 80%; color: white;">${escapeHtml(msg)}</div>`;
+    chatMessages.innerHTML += `<div class="chat-bubble user-bubble">${escapeHtml(msg)}</div>`;
     chatInput.value = '';
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
     const typingId = 'typing-' + Date.now();
-    chatMessages.innerHTML += `<div id="${typingId}" class="chat-bubble ai-bubble" style="align-self: flex-start; background: var(--glass-bg); padding: 10px 15px; border-radius: 15px; border-bottom-left-radius: 0; max-width: 80%; border: 1px solid var(--glass-border);"><i class="fa-solid fa-ellipsis fa-fade"></i></div>`;
+    chatMessages.innerHTML += `<div id="${typingId}" class="chat-bubble ai-bubble"><i class="fa-solid fa-ellipsis fa-fade"></i></div>`;
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
     const payload = {
@@ -405,7 +421,7 @@ async function handleChat() {
                 'Content-Type': 'application/json',
                 'X-Guest-ID': guestSessionId,
                 'X-HF-Token': localStorage.getItem('hf_token') || '',
-                'X-HF-Model': localStorage.getItem('hf_model') || 'mistralai/Mistral-7B-Instruct-v0.3'
+                'X-HF-Model': localStorage.getItem('hf_model') || 'google/gemma-3-27b-it'
             },
             body: JSON.stringify(payload)
         });
@@ -415,9 +431,9 @@ async function handleChat() {
 
         if (data.success) {
             incrementGuestUsage('chats');
-            chatMessages.innerHTML += `<div class="chat-bubble ai-bubble" style="align-self: flex-start; background: var(--glass-bg); padding: 10px 15px; border-radius: 15px; border-bottom-left-radius: 0; max-width: 80%; border: 1px solid var(--glass-border);">${escapeHtml(data.reply)}</div>`;
+            chatMessages.innerHTML += `<div class="chat-bubble ai-bubble">${escapeHtml(data.reply)}</div>`;
         } else {
-            chatMessages.innerHTML += `<div class="chat-bubble ai-bubble" style="align-self: flex-start; color: var(--accent-orange);">${escapeHtml(data.error || 'Failed to get reply.')}</div>`;
+            chatMessages.innerHTML += `<div class="chat-bubble ai-bubble chat-error">${escapeHtml(data.error || 'Failed to get reply.')}</div>`;
         }
         chatMessages.scrollTop = chatMessages.scrollHeight;
     } catch (err) {
@@ -477,6 +493,17 @@ function handleFileSelected(file) {
     if (!file) return;
     const ext  = file.name.split('.').pop().toLowerCase();
     const size = (file.size / 1024 / 1024).toFixed(2);
+
+    if (!['pdf', 'txt', 'md'].includes(ext)) {
+        showToast('Please select a PDF, TXT, or Markdown file.', 'error');
+        clearFileSelection();
+        return;
+    }
+    if (file.size > 16 * 1024 * 1024) {
+        showToast('File must be 16 MB or smaller.', 'error');
+        clearFileSelection();
+        return;
+    }
 
     fileName.textContent  = file.name;
     fileSize.textContent  = `${size} MB`;

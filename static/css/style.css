@@ -22,17 +22,21 @@
     --bg-input:       rgba(255,255,255,0.06);
     --bg-input-focus: rgba(255,255,255,0.09);
     --bg-modal:       #16162b;
+    --glass-bg:       rgba(255,255,255,0.04);
+    --input-bg:       rgba(255,255,255,0.06);
 
     /* Borders */
     --border:         rgba(255,255,255,0.08);
     --border-focus:   rgba(139,92,246,0.6);
     --border-card:    rgba(255,255,255,0.07);
+    --glass-border:   rgba(255,255,255,0.08);
 
     /* Text */
     --text-primary:   #f0f0f8;
     --text-secondary: #9898b8;
     --text-muted:     #5c5c7a;
     --text-invert:    #0a0a12;
+    --text-light:     #f0f0f8;
 
     /* Brand / Accent */
     --accent-purple:  #8b5cf6;
@@ -80,15 +84,19 @@
     --bg-input:       #e2e6eb;
     --bg-input-focus: #ffffff;
     --bg-modal:       #f4f7fb;
+    --glass-bg:       rgba(255,255,255,0.6);
+    --input-bg:       #e2e6eb;
 
     --border:         rgba(255, 255, 255, 0.6);
     --border-focus:   rgba(139,92,246,0.6);
     --border-card:    rgba(255, 255, 255, 0.7);
+    --glass-border:   rgba(255,255,255,0.7);
 
     --text-primary:   #2c303a;
     --text-secondary: #5f6575;
     --text-muted:     #8f96a3;
     --text-invert:    #ffffff;
+    --text-light:     #2c303a;
 
     /* Ultra-Realistic Neumorphic Shadows (Light Mode) */
     --shadow-sm:      6px 6px 14px rgba(175, 187, 204, 0.6), -6px -6px 14px #ffffff;
@@ -124,9 +132,15 @@ a { color: var(--accent-purple); text-decoration: none; transition: opacity var(
 a:hover { opacity: 0.8; }
 button { cursor: pointer; font-family: inherit; border: none; background: none; }
 input, select, textarea { font-family: inherit; }
+button:disabled { cursor: not-allowed; opacity: 0.65; }
 ul { list-style: none; }
 img { max-width: 100%; }
 .hidden { display: none !important; }
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid rgba(139, 92, 246, 0.42);
+    outline-offset: 3px;
+}
 
 /* ─────────────────────────────────────────────────────────────
    3.  NAVBAR
@@ -1037,6 +1051,67 @@ img { max-width: 100%; }
 .flashcard-back  .flashcard-label { color: var(--accent-green); }
 .flashcard-text  { font-size: 0.85rem; color: var(--text-primary); line-height: 1.5; }
 
+/* AI chat */
+.chat-interface {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 400px;
+}
+.chat-messages {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+.chat-bubble {
+    max-width: min(80%, 620px);
+    padding: 10px 15px;
+    border-radius: 15px;
+    color: var(--text-primary);
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+.ai-bubble {
+    align-self: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 3px;
+}
+.user-bubble {
+    align-self: flex-end;
+    color: #fff;
+    background: var(--gradient-brand);
+    border-bottom-right-radius: 3px;
+}
+.chat-error { color: var(--accent-orange); }
+.chat-input-row { display: flex; gap: 10px; }
+.chat-input-row .modal-input { flex: 1; min-width: 0; }
+.chat-send-btn { flex: 0 0 48px; padding: 0; justify-content: center; }
+
+/* Shared secondary action */
+.secondary-modal-btn {
+    display: block;
+    width: 100%;
+    padding: 11px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    text-align: center;
+    transition: background var(--transition), border-color var(--transition);
+}
+.secondary-modal-btn:hover { background: var(--bg-card-hover); border-color: var(--accent-purple); }
+.auth-modal-copy { margin-bottom: 2rem; color: var(--text-muted); text-align: center; }
+.auth-modal-buttons .primary-modal-btn { display: block; margin-bottom: 10px; text-align: center; }
+
 /* ─────────────────────────────────────────────────────────────
    10. MODAL
 ───────────────────────────────────────────────────────────── */
@@ -1161,4 +1236,15 @@ img { max-width: 100%; }
     .action-row { flex-direction: column; }
     .glow-button { width: 100%; justify-content: center; }
     .model-select-group { width: 100%; }
+    .chat-bubble { max-width: 92%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

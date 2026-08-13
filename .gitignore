@@ -31,6 +31,7 @@ share/python-wheels/
 *.sqlite3
 *.db
 summaries.db
+data/
 
 # IDEs and OS
 .vscode/

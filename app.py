@@ -7,6 +7,8 @@ user-scoped summary management, and Gunicorn-ready export.
 import os
 import math
 import io
+import re
+from urllib.parse import urljoin, urlparse
 
 from flask import (
     Flask, request, jsonify, render_template,
@@ -25,7 +27,7 @@ from database import (
     create_user, get_user_by_email, get_user_by_id,
     save_summary, get_history, get_summary, delete_summary, migrate_guest_data
 )
-from summarizer import summarize_text, chat_with_ai
+from summarizer import DEFAULT_MODEL, summarize_text, chat_with_ai
 
 load_dotenv()
 
@@ -37,6 +39,26 @@ app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024   # 16 MB upload limit
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+GUEST_ID_PATTERN = re.compile(r"^guest_[A-Za-z0-9_-]{16,128}$")
+MAX_CHAT_MESSAGE_LENGTH = 4000
+
+
+def is_safe_next_url(target: str | None) -> bool:
+    """Allow redirects only to paths on this application."""
+    if not target:
+        return False
+    host_url = urlparse(request.host_url)
+    redirect_url = urlparse(urljoin(request.host_url, target))
+    return redirect_url.scheme in ("http", "https") and redirect_url.netloc == host_url.netloc
+
+
+def get_guest_id(*candidates) -> str | None:
+    """Return a well-formed guest bearer ID, or None."""
+    for candidate in candidates:
+        if isinstance(candidate, str) and GUEST_ID_PATTERN.fullmatch(candidate):
+            return candidate
+    return None
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  Flask-Login Setup
@@ -122,7 +144,7 @@ def signup():
         user = User(user_data)
         login_user(user)
 
-        guest_id = request.form.get("guest_id")
+        guest_id = get_guest_id(request.form.get("guest_id"))
         if guest_id:
             migrated = migrate_guest_data(guest_id, user.id)
             if migrated > 0:
@@ -156,14 +178,14 @@ def login():
         user = User(user_data)
         login_user(user, remember=remember)
 
-        guest_id = request.form.get("guest_id")
+        guest_id = get_guest_id(request.form.get("guest_id"))
         if guest_id:
             migrated = migrate_guest_data(guest_id, user.id)
             if migrated > 0:
                 flash(f"Logged in successfully. Migrated {migrated} items from guest session.", "success")
 
         next_page = request.args.get("next")
-        return redirect(next_page or url_for("dashboard"))
+        return redirect(next_page if is_safe_next_url(next_page) else url_for("dashboard"))
 
     return render_template("login.html")
 
@@ -227,7 +249,9 @@ def api_summarize():
         if current_user.is_authenticated:
             user_id = current_user.id
         else:
-            user_id = request.headers.get("X-Guest-ID") or request.form.get("guest_id")
+            user_id = get_guest_id(
+                request.headers.get("X-Guest-ID"), request.form.get("guest_id")
+            )
             if not user_id:
                 return jsonify({"success": False, "error": "Missing authentication or guest ID"}), 401
 
@@ -238,7 +262,7 @@ def api_summarize():
         
         model_name = (request.headers.get("X-HF-Model")
                       or request.form.get("model_name", "").strip()
-                      or "mistralai/Mistral-7B-Instruct-v0.3")
+                      or DEFAULT_MODEL)
 
         # Use server default token if the user didn't provide one and isn't using mock mode
         if not api_token and model_name != "mock":
@@ -317,25 +341,41 @@ def api_summarize():
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
     try:
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return jsonify({"success": False, "error": "Invalid JSON object"}), 400
         summary_id = data.get("summary_id")
         user_message = data.get("message")
         chat_history = data.get("history", [])
 
-        if not summary_id or not user_message:
+        if not isinstance(summary_id, str) or not isinstance(user_message, str) or not user_message.strip():
             return jsonify({"success": False, "error": "Missing summary_id or message"}), 400
+        user_message = user_message.strip()
+        if len(user_message) > MAX_CHAT_MESSAGE_LENGTH:
+            return jsonify({"success": False, "error": "Message is too long"}), 400
+        if not isinstance(chat_history, list):
+            return jsonify({"success": False, "error": "History must be a list"}), 400
+        chat_history = [
+            {"role": item["role"], "content": item["content"][:MAX_CHAT_MESSAGE_LENGTH]}
+            for item in chat_history[-20:]
+            if isinstance(item, dict)
+            and item.get("role") in ("user", "assistant")
+            and isinstance(item.get("content"), str)
+        ]
 
         if current_user.is_authenticated:
             user_id = current_user.id
         else:
-            user_id = request.headers.get("X-Guest-ID") or data.get("guest_id")
+            user_id = get_guest_id(request.headers.get("X-Guest-ID"), data.get("guest_id"))
+            if not user_id:
+                return jsonify({"success": False, "error": "Missing or invalid guest ID"}), 401
 
         summary_data = get_summary(summary_id, user_id)
         if not summary_data:
             return jsonify({"success": False, "error": "Summary not found or access denied"}), 404
 
         api_token  = request.headers.get("X-HF-Token", "")
-        model_name = request.headers.get("X-HF-Model", "mistralai/Mistral-7B-Instruct-v0.3")
+        model_name = request.headers.get("X-HF-Model", DEFAULT_MODEL)
 
         if not api_token and model_name != "mock":
             api_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN", "")
@@ -352,10 +392,10 @@ def api_chat():
 @login_required
 def api_migrate_guest_data_endpoint():
     try:
-        data = request.json or {}
-        guest_id = data.get("guest_id")
+        data = request.get_json(silent=True) or {}
+        guest_id = get_guest_id(data.get("guest_id")) if isinstance(data, dict) else None
         if not guest_id:
-            return jsonify({"success": False, "error": "Missing guest_id"}), 400
+            return jsonify({"success": False, "error": "Missing or invalid guest_id"}), 400
             
         migrated = migrate_guest_data(guest_id, current_user.id)
         return jsonify({"success": True, "migrated_count": migrated})

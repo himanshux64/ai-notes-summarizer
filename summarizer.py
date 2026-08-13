@@ -1,18 +1,4 @@
-import os
 import re
-import json
-
-# Fallback imports to support both langchain-huggingface and older langchain-community
-try:
-    from langchain_huggingface import HuggingFaceEndpoint
-except ImportError:
-    try:
-        from langchain_community.llms import HuggingFaceHub as HuggingFaceEndpoint
-    except ImportError:
-        HuggingFaceEndpoint = None
-
-from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 
 PROMPT_TEMPLATE = """You are an expert AI academic tutor and research assistant. Your task is to analyze the following text and generate structured learning materials.
 
@@ -171,7 +157,10 @@ def generate_mock_summary(text):
         "flashcards": flashcards
     }
 
-def summarize_text(text, api_token=None, model_name="meta-llama/Meta-Llama-3-8B-Instruct"):
+DEFAULT_MODEL = "google/gemma-3-27b-it"
+
+
+def summarize_text(text, api_token=None, model_name=DEFAULT_MODEL):
     """
     Main summarization entry point. If api_token is provided, calls HF via InferenceClient.
     Otherwise, falls back to local mock summarizer.
@@ -179,14 +168,10 @@ def summarize_text(text, api_token=None, model_name="meta-llama/Meta-Llama-3-8B-
     if not api_token or api_token.strip() == "" or api_token == "mock":
         return generate_mock_summary(text)
         
-    # Prevent old browser localStorage from crashing the app
-    if "Mistral" in model_name or "zephyr" in model_name or "Llama-3.1" in model_name:
-        model_name = "meta-llama/Meta-Llama-3-8B-Instruct"
+    # Migrate model IDs previously used by this app but no longer routed.
+    if any(name in model_name for name in ("Mistral", "zephyr", "Meta-Llama-3")):
+        model_name = DEFAULT_MODEL
 
-    if HuggingFaceEndpoint is None:
-        # Fallback if libraries aren't loaded properly
-        return generate_mock_summary(text)
-        
     try:
         from huggingface_hub import InferenceClient
         
@@ -226,15 +211,15 @@ def summarize_text(text, api_token=None, model_name="meta-llama/Meta-Llama-3-8B-
         mock_data["summary"] = f"⚠️ [LLM API Error: {str(e)} - Displaying fallback notes]\n\n" + mock_data["summary"]
         return mock_data
 
-def chat_with_ai(context_text, user_message, chat_history=None, api_token=None, model_name="meta-llama/Meta-Llama-3-8B-Instruct"):
+def chat_with_ai(context_text, user_message, chat_history=None, api_token=None, model_name=DEFAULT_MODEL):
     """
     Handles a single chat turn about the document context.
     """
     if not api_token or api_token.strip() == "" or api_token == "mock":
         return "Local Mock Mode: This is a simulated response. In production, the AI would answer your question based on the document context."
 
-    if "Mistral" in model_name or "zephyr" in model_name or "Llama-3.1" in model_name:
-        model_name = "meta-llama/Meta-Llama-3-8B-Instruct"
+    if any(name in model_name for name in ("Mistral", "zephyr", "Meta-Llama-3")):
+        model_name = DEFAULT_MODEL
 
     try:
         from huggingface_hub import InferenceClient
