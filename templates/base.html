@@ -43,6 +43,8 @@
                 </a>
             {% else %}
                 <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Home</a>
+                <a href="{{ url_for('login') }}" class="nav-link mobile-nav-only">Log In</a>
+                <a href="{{ url_for('signup') }}" class="nav-link mobile-nav-only mobile-nav-cta">Get Started</a>
             {% endif %}
         </div>
 
